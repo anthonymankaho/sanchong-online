@@ -1,5 +1,6 @@
 // 中山三鄉睇樓評分表 (online) — Cloudflare Worker
 // Serves the JSON API, R2 photo blobs, and the static SPA from /public.
+import { handleAiChat, handleAiApply, handleAiQuota } from './ai.js';
 
 // Single source of truth for the on-site inspection scorecard (from 買樓實地檢查及三盤比較表.pdf).
 // Each item is scored 1–5 (1=很差 2=較差 3=一般 4=良好 5=優秀); null = 不適用/未評分.
@@ -204,6 +205,11 @@ async function handleApi(env, url, request) {
     await env.DB.prepare('UPDATE units SET updated_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
     return json({ ok: true, saved: batch.length });
   }
+
+  // ---- AI assistant ----
+  if (path === '/api/ai/quota' && method === 'GET') return handleAiQuota(env);
+  if (path === '/api/ai/chat' && method === 'POST') return handleAiChat(env, request, { CHECKLIST_SCHEMA });
+  if (path === '/api/ai/apply' && method === 'POST') return handleAiApply(env, request, { CHECKLIST_SCHEMA });
 
   return err('not found', 404);
 }

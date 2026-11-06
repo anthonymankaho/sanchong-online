@@ -49,3 +49,12 @@ CREATE TABLE IF NOT EXISTS photos (
     created_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_photos_unit ON photos(unit_id);
+
+-- AI assistant token quota. Single row (id=1). Cumulative, NEVER auto-refreshes;
+-- owner resets manually via D1. Counts tokens only, never prompt contents.
+CREATE TABLE IF NOT EXISTS ai_quota (
+    id              INTEGER PRIMARY KEY CHECK (id = 1),
+    used_prompt     INTEGER NOT NULL DEFAULT 0,
+    used_completion INTEGER NOT NULL DEFAULT 0,
+    updated_at      TEXT    NOT NULL
+);

@@ -364,6 +364,160 @@
   $('#chkUnit').addEventListener('change', async e => { chkUnitId = Number(e.target.value) || null; await loadChecklist(); });
   $('#f_photos').addEventListener('change', onPhotoPick);
 
+  // ===================== AI assistant =====================
+  let aiHistory = [];
+  let aiPending = [];        // annotated ops from last response
+  let aiUndo = null;         // snapshot for undo
+  let aiBusy = false;
+
+  function aiOpen() {
+    $('#aiModal').classList.remove('hidden');
+    $('#aiInput').focus();
+    loadAiQuota();
+  }
+  function aiClose() { $('#aiModal').classList.add('hidden'); }
+  async function loadAiQuota() {
+    try {
+      const q = await api('/api/ai/quota');
+      if (!q.configured) { $('#aiQuota').textContent = 'AI 未配置（伺服器未設 API key）'; return; }
+      const rem = q.quota.remaining;
+      $('#aiQuota').textContent = rem <= 0
+        ? '配額已用盡 — AI 已停用（唔會自動刷新）'
+        : '配額餘額 ' + rem.toLocaleString('en-US') + ' / ' + q.quota.limit.toLocaleString('en-US') + ' tokens（ cumulative，唔刷新）';
+    } catch (e) { $('#aiQuota').textContent = ''; }
+  }
+  function aiMsg(role, text) {
+    const d = document.createElement('div');
+    d.className = 'ai-msg ' + role;
+    d.textContent = text;                 // escaped: never innerHTML for model text
+    $('#aiMsgs').appendChild(d);
+    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+  }
+  function fmtVal(v) { return (v === null || v === undefined || v === '') ? '—' : String(v); }
+
+  function renderAiOps(ops) {
+    aiPending = ops || [];
+    const wrap = $('#aiOpsWrap');
+    wrap.innerHTML = '';
+    if (!aiPending.length) { $('#aiApplyRow').classList.add('hidden'); return; }
+    aiPending.forEach((o, i) => {
+      const box = document.createElement('div');
+      box.className = 'ai-ops';
+      let title = '', diffs = '';
+      if (o.op === 'create_unit') {
+        title = '➕ 建立單位：' + (o.fields.estate || '');
+        diffs = Object.entries(o.fields).map(([k, v]) => `<div class="ai-diff">${esc(k)} → <span class="new">${esc(fmtVal(v))}</span></div>`).join('');
+      } else if (o.op === 'update_unit') {
+        const u = units.find(x => x.id === o.id);
+        title = '✏️ 更新單位 #' + o.id + '：' + (u ? u.estate : '');
+        diffs = Object.entries(o.fields).map(([k, v]) =>
+          `<div class="ai-diff">${esc(k)}：<span class="old">${esc(fmtVal(o.old && o.old[k]))}</span> → <span class="new">${esc(fmtVal(v))}</span></div>`).join('');
+      } else {
+        const u = units.find(x => x.id === o.unit_id);
+        title = '✅ 檢查表 #' + o.unit_id + '：' + (u ? u.estate : '');
+        const oldMap = {};
+        (o.old || []).forEach(x => { oldMap[x.category + '|' + x.item] = x.score; });
+        diffs = o.items.map(it =>
+          `<div class="ai-diff">${esc(it.item)}：<span class="old">${esc(fmtVal(oldMap[it.category + '|' + it.item]))}</span> → <span class="new">${esc(fmtVal(it.score))}</span></div>`).join('');
+      }
+      box.innerHTML = `<label class="ai-ops-head"><input type="checkbox" data-opidx="${i}" checked> ${esc(title)}</label>${diffs}`;
+      wrap.appendChild(box);
+    });
+    $('#aiApplyRow').classList.remove('hidden');
+    $('#aiUndo').classList.add('hidden');
+  }
+
+  async function aiSend() {
+    if (aiBusy) return;
+    const input = $('#aiInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    aiMsg('user', text);
+    aiBusy = true;
+    $('#aiSend').disabled = true;
+    try {
+      const r = await api('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message: text, history: aiHistory }) });
+      aiMsg('bot', r.message || '（AI 冇返回訊息）');
+      aiHistory.push({ role: 'user', content: text });
+      aiHistory.push({ role: 'assistant', content: r.message || '' });
+      if (aiHistory.length > 12) aiHistory = aiHistory.slice(-12);
+      if (r.invalid) aiMsg('err', '（AI 返回嘅修改建議格式無效，已捨棄 — 資料未改動）');
+      renderAiOps(r.operations);
+      if (r.quota) {
+        $('#aiQuota').textContent = r.quota.remaining <= 0
+          ? '配額已用盡 — AI 已停用（唔會自動刷新）'
+          : '配額餘額 ' + r.quota.remaining.toLocaleString('en-US') + ' / ' + r.quota.limit.toLocaleString('en-US') + ' tokens';
+      }
+    } catch (e) {
+      const m = e.message;
+      if (m === 'quota_exhausted') aiMsg('err', 'AI 配額已用盡（5,000,000 tokens，唔會自動刷新）。助手已停用。');
+      else if (m === 'ai_not_configured') aiMsg('err', 'AI 未配置：伺服器未設 DASHSCOPE_API_KEY。');
+      else if (m === 'prompt_too_large') aiMsg('err', '內容太長，請縮短訊息或清空對話。');
+      else aiMsg('err', 'AI 錯誤：' + m);
+    } finally {
+      aiBusy = false;
+      $('#aiSend').disabled = false;
+      $('#aiInput').focus();
+    }
+  }
+
+  async function snapshotFor(ops) {
+    const snap = { units: [], checklists: [], created: [] };
+    for (const o of ops) {
+      if (o.op === 'update_unit') {
+        snap.units.push({ id: o.id, fields: o.old });
+      } else if (o.op === 'set_checklist') {
+        snap.checklists.push({ unit_id: o.unit_id, items: o.old });
+      }
+    }
+    return snap;
+  }
+
+  async function aiApply() {
+    const checked = Array.from(document.querySelectorAll('#aiOpsWrap input[data-opidx]:checked'))
+      .map(c => aiPending[Number(c.dataset.opidx)]).filter(Boolean);
+    if (!checked.length) { toast('請至少勾選一項'); return; }
+    if (!confirm('確認套用 ' + checked.length + ' 項修改？')) return;
+    aiUndo = await snapshotFor(checked);
+    try {
+      const r = await api('/api/ai/apply', { method: 'POST', body: JSON.stringify({ operations: checked }) });
+      (r.applied || []).forEach(a => { if (a.op === 'create_unit') aiUndo.created.push(a.id); });
+      toast('已套用 ' + r.applied.length + ' 項');
+      renderAiOps([]);
+      $('#aiUndo').classList.remove('hidden');
+      await loadUnits();
+    } catch (e) {
+      toast('套用失敗：' + e.message);
+      aiMsg('err', '套用失敗：' + e.message + '（資料未改動）');
+    }
+  }
+
+  async function aiUndoNow() {
+    if (!aiUndo) return;
+    try {
+      for (const id of aiUndo.created) await api('/api/units/' + id, { method: 'DELETE' });
+      for (const u of aiUndo.units) await api('/api/units/' + u.id, { method: 'PUT', body: JSON.stringify(u.fields) });
+      for (const c of aiUndo.checklists) {
+        await api('/api/units/' + c.unit_id + '/checklist', { method: 'PUT', body: JSON.stringify({ items: c.items }) });
+      }
+      aiUndo = null;
+      $('#aiUndo').classList.add('hidden');
+      toast('已還原');
+      await loadUnits();
+    } catch (e) { toast('還原失敗：' + e.message); }
+  }
+
+  $('#aiFab').addEventListener('click', aiOpen);
+  $('#aiClose').addEventListener('click', aiClose);
+  $('#aiModal').addEventListener('click', e => { if (e.target === $('#aiModal')) aiClose(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#aiModal').classList.contains('hidden')) aiClose(); });
+  $('#aiSend').addEventListener('click', aiSend);
+  $('#aiInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); aiSend(); } });
+  $('#aiApply').addEventListener('click', aiApply);
+  $('#aiDiscard').addEventListener('click', () => { renderAiOps([]); toast('已棄置建議'); });
+  $('#aiUndo').addEventListener('click', aiUndoNow);
+
   // ---------- boot ----------
   initScoreWidgets();
   showTab('list');
