@@ -14,6 +14,12 @@
   let chkUnitId = null;
 
   const SCORE_FIELDS = ['loc','layout','decor','env','value','agent'];
+  // 三鄉主要樓盤（預設選擇；用家仍可自由輸入其他名稱）
+  const ESTATES = [
+    '雅居樂花園','雅居樂新城','雅居樂萬象郡','雅居樂佰利山','雅居樂錦城',
+    '雅居樂畔山中心城','雅居樂灣際壹號','碧桂園·天悅府','碧桂園·爵悅府','三鄉碧桂園',
+    '華發觀山水','雲山雅墅','金沙萬象郡花園'
+  ];
   const NUM_INPUTS = ['area_use','area_build','year_built','age_years','price','price_negotiated','price_original','mgmt_fee','reno_cost'];
   const TXT_INPUTS = ['estate','unit','rooms','baths','parking','floor','facing','hold_years','pros','cons','intent','note'];
 
@@ -112,10 +118,28 @@
   }
   function getOverall() { return parseInt($('#scoreGroup').dataset.score || '0', 10); }
 
+  function initEstatePick() {
+    const sel = $('#f_estate_pick');
+    sel.innerHTML = '<option value="">（選擇三鄉主要樓盤，或下方自訂）</option>' +
+      ESTATES.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('') +
+      '<option value="__custom__">✏️ 自訂…</option>';
+    sel.addEventListener('change', () => {
+      const v = sel.value;
+      if (v === '__custom__') { $('#f_estate').value = ''; $('#f_estate').focus(); }
+      else if (v) { $('#f_estate').value = v; }
+    });
+    $('#f_estate').addEventListener('input', syncEstatePick);
+  }
+  function syncEstatePick() {
+    const v = $('#f_estate').value.trim();
+    $('#f_estate_pick').value = ESTATES.includes(v) ? v : '';
+  }
+
   function resetForm() {
     editingId = null;
     $('#formTitle').textContent = '新增單位';
     TXT_INPUTS.forEach(k => { const el = $('#f_' + k); if (el) el.value = ''; });
+    $('#f_estate_pick').value = '';
     NUM_INPUTS.forEach(k => { const el = $('#f_' + k); if (el) el.value = ''; });
     $('#f_type').value = '二手';
     $('#f_decor').value = '毛坯';
@@ -133,6 +157,7 @@
       editingId = id;
       $('#formTitle').textContent = '編輯單位';
       TXT_INPUTS.forEach(k => { const el = $('#f_' + k); if (el) el.value = u[k] || ''; });
+      syncEstatePick();
       NUM_INPUTS.forEach(k => { const el = $('#f_' + k); if (el) el.value = u[k] ? String(u[k]) : ''; });
       $('#f_type').value = u.type || '二手';
       $('#f_decor').value = u.decor || '毛坯';
@@ -520,5 +545,6 @@
 
   // ---------- boot ----------
   initScoreWidgets();
+  initEstatePick();
   showTab('list');
 })();

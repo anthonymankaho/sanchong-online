@@ -6,6 +6,8 @@
 
 An online property-viewing tool on Cloudflare: unit scoring, a **67-item on-site inspection checklist** (from 《買樓實地檢查及三盤比較表》), and a **multi-property comparison table**.
 
+**樓盤名稱支援「輸入＋選擇」**：預設 13 個三鄉主要樓盤（雅居樂／碧桂園／華發等）可即時選擇，亦可自由輸入其他名稱。 / **Estate name supports type-or-select**: 13 preset major Sanxiang compounds (Agile / Country Garden / Huafa etc.) for quick pick, or free-text for anything else.
+
 ---
 
 ## 🏗 架構 / Architecture
@@ -119,6 +121,7 @@ node test-ai.js nokey    http://127.0.0.1:8792     # dev started without the sec
 |---|---|
 | 2026-11-06 | 初版上線：單位評分＋67 項檢查表＋多盤比較（Workers+D1+R2）|
 | 2026-11-07 | 加入 🤖 AI 助手；修正 endpoint 去 QwenCloud Token Plan＋model `qwen3.7-plus`；**AI 啟用並驗證 200** |
+| 2026-11-07 | 樓盤名稱改做**可輸入＋可選擇**：預設 13 個三鄉主要樓盤（`ESTATES` in `public/app.js`）＋「✏️ 自訂…」；選擇會填入輸入框，輸入亦會同步選擇 |
 
 ---
 
