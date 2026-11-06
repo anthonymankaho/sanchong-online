@@ -4,7 +4,7 @@
 const CFG = {
   defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   defaultModel: 'qwen-plus',
-  allowedHosts: ['dashscope.aliyuncs.com', '127.0.0.1', 'localhost'],
+  allowedHosts: ['dashscope.aliyuncs.com', 'dashscope-intl.aliyuncs.com', '127.0.0.1', 'localhost'],
   maxUserChars: 2000,
   maxHistoryTurns: 6,
   maxHistoryChars: 6000,
@@ -223,7 +223,10 @@ function concatChunks(chunks) {
 async function callProvider(env, c, messages) {
   const base = c.baseUrl.replace(/\/+$/, '');
   const url = new URL(base + '/chat/completions');
-  if (!CFG.allowedHosts.includes(url.hostname)) throw new Error('provider_host_not_allowed');
+  // the configured base URL's own host is always trusted (server-side config,
+  // never browser-supplied); plus the static provider allowlist
+  const allowed = CFG.allowedHosts.concat([new URL(c.baseUrl).hostname]);
+  if (!allowed.includes(url.hostname)) throw new Error('provider_host_not_allowed');
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CFG.timeoutMs);
   let res;
