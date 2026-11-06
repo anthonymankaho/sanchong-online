@@ -1,0 +1,18 @@
+name = "sanchong-online"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sanchong-db"
+database_id = "1fb70392-29ba-4956-8c16-b2274eb805cb"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "sanchong-photos"

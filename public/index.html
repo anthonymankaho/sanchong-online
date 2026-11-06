@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="中山三鄉睇樓評分表（線上版）— 實地檢查評分＋多盤比較">
+<title>中山三鄉睇樓評分表 · 線上版</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🏠</text></svg>">
+<style>
+  :root{
+    --primary:#1976d2; --success:#2e7d32; --danger:#c62828; --warning:#ff9800;
+    --bg:#f5f7fa; --card:#fff; --text:#333; --border:#e0e0e0; --radius:12px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang TC","Microsoft JhengHei",sans-serif;
+       background:var(--bg);color:var(--text);line-height:1.5;padding-bottom:70px}
+  .wrap{max-width:760px;margin:0 auto;padding:12px}
+  header{text-align:center;padding:14px 0 10px;border-bottom:2px solid var(--primary);margin-bottom:12px}
+  header h1{font-size:21px;color:var(--primary)}
+  header p{font-size:12px;color:#777;margin-top:2px}
+
+  /* bottom tab bar */
+  .tabbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);
+          display:flex;z-index:50;box-shadow:0 -2px 8px rgba(0,0,0,.06)}
+  .tabbar button{flex:1;min-height:56px;border:none;background:none;font-size:13px;color:#888;cursor:pointer;
+                 display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
+  .tabbar button .ico{font-size:20px}
+  .tabbar button.active{color:var(--primary);font-weight:600}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 16px;
+       border:none;border-radius:var(--radius);font-size:15px;font-weight:500;cursor:pointer;width:100%;gap:4px}
+  .btn:active{opacity:.75}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-success{background:var(--success);color:#fff}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-outline{background:#fff;border:1.5px solid var(--border);color:#555}
+  .btn-sm{min-height:38px;padding:7px 12px;font-size:14px;width:auto}
+
+  .card{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;
+        border:1px solid #eee;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .card-title{font-size:17px;font-weight:700;overflow-wrap:break-word}
+  .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}
+  .tag-blue{background:#e3f2fd;color:#1565c0}.tag-green{background:#e8f5e9;color:#2e7d32}
+  .tag-gray{background:#f5f5f5;color:#666;border:1px solid #ddd}.tag-orange{background:#fff3e0;color:#e65100}
+  .badge{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+         font-weight:700;font-size:17px;color:#fff;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+  .b-high{background:var(--success)}.b-mid{background:var(--warning)}.b-low{background:var(--danger)}
+  .price-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;margin:8px 0}
+  .price-main{font-size:17px;font-weight:700;color:var(--danger)}
+  .price-unit{font-size:12px;color:#888}
+  .avg-row{font-size:13px;color:#555;background:#f0f7ff;border:1px solid #d6e9ff;border-radius:6px;padding:5px 9px;margin:6px 0}
+  .avg-row b{color:var(--primary)}
+  .photo-strip{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+  .photo-strip img{width:62px;height:62px;object-fit:cover;border-radius:8px;border:1px solid #eee}
+  .photo-more{width:62px;height:62px;display:flex;align-items:center;justify-content:center;background:#f0f0f0;
+              border-radius:8px;font-size:12px;color:#999;border:1px dashed #ccc}
+  .card-actions{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0}
+  .card-actions .btn{flex:1;width:auto}
+  .card-time{text-align:right;font-size:11px;color:#bbb;margin-top:6px}
+  .empty{text-align:center;padding:50px 20px;color:#bbb;font-size:15px;line-height:1.9}
+
+  .sec{font-size:14px;font-weight:600;color:var(--primary);margin:0 0 8px;padding-bottom:4px;border-bottom:1px solid #e8e8e8}
+  .lbl{display:block;font-size:13px;color:#555;margin-bottom:4px;font-weight:500}
+  .inp,.sel,.ta{width:100%;min-height:44px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;
+                font-size:16px;background:#fff}
+  .inp:focus,.sel:focus,.ta:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(25,118,210,.1)}
+  .ta{height:80px;resize:vertical}
+  .row{display:flex;gap:10px}.col{flex:1;min-width:0}
+  .req{color:var(--danger)}
+  .mb{margin-bottom:12px}
+
+  .star-group{display:flex;gap:6px;flex-wrap:wrap}
+  .star-btn{width:42px;height:42px;border-radius:50%;border:2px solid var(--border);background:#fff;
+            display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;cursor:pointer;color:#888}
+  .star-btn.active{background:#e3f2fd;border-color:var(--primary);color:var(--primary);transform:scale(1.08)}
+
+  .score5{display:flex;gap:5px;flex-wrap:wrap}
+  .s5{width:38px;height:38px;border-radius:8px;border:1.5px solid var(--border);background:#fff;
+      display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;cursor:pointer;color:#888}
+  .s5.active{background:#e8f5e9;border-color:var(--success);color:var(--success)}
+  .s5.na.active{background:#f5f5f5;border-color:#999;color:#666}
+
+  .chk-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed #eee}
+  .chk-item:last-child{border-bottom:none}
+  .chk-name{font-size:14px;flex:1;min-width:0}
+
+  table.cmp{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+  table.cmp th,table.cmp td{border:1px solid #e5e5e5;padding:7px 8px;text-align:center}
+  table.cmp th:first-child,table.cmp td:first-child{text-align:left;font-weight:500;color:#555;white-space:nowrap}
+  table.cmp thead th{background:#f0f7ff;color:var(--primary);position:sticky;top:0}
+  table.cmp td.best{background:#e8f5e9;font-weight:700;color:var(--success)}
+  .tbl-scroll{overflow-x:auto;border-radius:8px;border:1px solid #e5e5e5}
+
+  .photo-add{display:flex;align-items:center;justify-content:center;min-height:44px;padding:10px;
+             border:2px dashed var(--border);border-radius:8px;background:#fafbfc;font-size:14px;color:#888;cursor:pointer}
+  .photo-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .photo-item{position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid #eee}
+  .photo-item img{width:100%;height:100%;object-fit:cover}
+  .photo-del{position:absolute;top:2px;right:2px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);
+             color:#fff;border:none;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .hidden{display:none!important}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:76px;background:rgba(0,0,0,.8);color:#fff;
+         padding:9px 18px;border-radius:20px;font-size:14px;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none}
+  .toast.show{opacity:1}
+  .unit-picker{margin-bottom:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏠 中山三鄉睇樓評分表</h1>
+  <p>線上版 · 實地檢查 67 項 · 多盤比較</p>
+</header>
+
+<div class="wrap">
+  <!-- ============ LIST ============ -->
+  <section id="view-list">
+    <div class="mb"><button class="btn btn-success" data-act="new">＋ 新增單位</button></div>
+    <div id="unitList"></div>
+  </section>
+
+  <!-- ============ FORM ============ -->
+  <section id="view-form" class="hidden">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h2 id="formTitle" style="font-size:18px">新增單位</h2>
+        <button class="btn btn-sm btn-outline" data-act="cancel">✕ 關閉</button>
+      </div>
+
+      <div class="sec">基本資料</div>
+      <div class="mb"><label class="lbl">樓盤名稱 <span class="req">*</span></label><input class="inp" id="f_estate" placeholder="例如：雅居樂悅景園"></div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">座數／單位</label><input class="inp" id="f_unit" placeholder="3座 1205室"></div>
+        <div class="col"><label class="lbl">類型</label><select class="sel" id="f_type"><option>二手</option><option>一手</option></select></div>
+      </div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">實用面積 ㎡</label><input class="inp" id="f_area_use" type="number" step="0.01" inputmode="decimal"></div>
+        <div class="col"><label class="lbl">建築面積 ㎡</label><input class="inp" id="f_area_build" type="number" step="0.01" inputmode="decimal"></div>
+      </div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">房間</label><input class="inp" id="f_rooms" placeholder="2房2衛"></div>
+        <div class="col"><label class="lbl">浴室／廁所</label><input class="inp" id="f_baths" placeholder="2"></div>
+      </div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">車位</label><input class="inp" id="f_parking" placeholder="1"></div>
+        <div class="col"><label class="lbl">樓層／總樓層</label><input class="inp" id="f_floor" placeholder="12/26"></div>
+      </div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">裝修</label><select class="sel" id="f_decor"><option>毛坯</option><option>簡裝</option><option>精裝</option><option>豪華裝修</option></select></div>
+        <div class="col"><label class="lbl">朝向</label><input class="inp" id="f_facing" placeholder="南"></div>
+      </div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">建築年份</label><input class="inp" id="f_year_built" type="number" inputmode="numeric"></div>
+        <div class="col"><label class="lbl">樓齡（年）</label><input class="inp" id="f_age_years" type="number" inputmode="numeric"></div>
+      </div>
+      <div class="mb"><label class="lbl">現業主持有／居住年期</label><input class="inp" id="f_hold_years" placeholder="例如：5 年"></div>
+
+      <div class="sec">價格</div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">叫價（人民幣）</label><input class="inp" id="f_price" type="number" step="10000" inputmode="numeric"></div>
+        <div class="col"><label class="lbl">議價後價格</label><input class="inp" id="f_price_negotiated" type="number" step="10000" inputmode="numeric"></div>
+      </div>
+      <div class="row mb">
+        <div class="col"><label class="lbl">當年一手售價</label><input class="inp" id="f_price_original" type="number" step="10000" inputmode="numeric"></div>
+        <div class="col"><label class="lbl">每月管理費</label><input class="inp" id="f_mgmt_fee" type="number" inputmode="numeric"></div>
+      </div>
+      <div class="mb"><label class="lbl">預計裝修維修費</label><input class="inp" id="f_reno_cost" type="number" step="1000" inputmode="numeric"></div>
+
+      <div class="sec">總體評分（1–10）</div>
+      <div class="star-group mb" id="scoreGroup"></div>
+
+      <div class="sec">六項細分（1–10）</div>
+      <div class="row mb" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="lbl">位置交通</label><select class="sel sc" id="sc_loc"></select></div>
+        <div><label class="lbl">戶型格局</label><select class="sel sc" id="sc_layout"></select></div>
+        <div><label class="lbl">裝修狀況</label><select class="sel sc" id="sc_decor"></select></div>
+        <div><label class="lbl">小區環境</label><select class="sel sc" id="sc_env"></select></div>
+        <div><label class="lbl">性價比</label><select class="sel sc" id="sc_value"></select></div>
+        <div><label class="lbl">代理可信度</label><select class="sel sc" id="sc_agent"></select></div>
+      </div>
+
+      <div class="sec">交易風險與決定</div>
+      <div class="mb"><label class="lbl">主要優點</label><textarea class="ta" id="f_pros"></textarea></div>
+      <div class="mb"><label class="lbl">主要缺點</label><textarea class="ta" id="f_cons"></textarea></div>
+      <div class="mb"><label class="lbl">最終意向</label><input class="inp" id="f_intent" placeholder="例如：列入短名單 / 放棄"></div>
+      <div class="mb"><label class="lbl">備註</label><textarea class="ta" id="f_note" placeholder="滲水、潮濕、噪音、採光、議價空間、代理說法…"></textarea></div>
+
+      <div class="sec">現場照片</div>
+      <label class="photo-add" for="f_photos">📷 選擇照片／即場影相（自動壓縮）</label>
+      <input type="file" id="f_photos" accept="image/*" multiple capture="environment" style="display:none">
+      <div class="photo-grid" id="photoGrid"></div>
+
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn btn-primary" style="flex:1" data-act="save">💾 儲存</button>
+        <button class="btn btn-outline" style="flex:1" data-act="cancel">取消</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHECKLIST ============ -->
+  <section id="view-check" class="hidden">
+    <div class="card unit-picker">
+      <label class="lbl">選擇樓盤</label>
+      <select class="sel" id="chkUnit"></select>
+      <div class="avg-row" id="chkProgress" style="margin-top:10px"></div>
+    </div>
+    <div id="chkBody"></div>
+    <div class="mb"><button class="btn btn-primary" data-act="saveCheck">💾 儲存檢查表</button></div>
+  </section>
+
+  <!-- ============ COMPARE ============ -->
+  <section id="view-compare" class="hidden">
+    <div class="card">
+      <div class="sec">多盤比較</div>
+      <div class="tbl-scroll" id="cmpWrap"></div>
+      <p style="font-size:12px;color:#888;margin-top:10px">
+        評分規則：1=很差、2=較差、3=一般、4=良好、5=優秀；不適用或未評分不計入平均。<br>
+        綠色＝該列最佳值。估計總成本＝叫價＋預計裝修維修費。
+      </p>
+    </div>
+  </section>
+</div>
+
+<div class="tabbar">
+  <button data-tab="list" class="active"><span class="ico">📋</span>列表</button>
+  <button data-tab="form"><span class="ico">➕</span>新增</button>
+  <button data-tab="check"><span class="ico">✅</span>檢查表</button>
+  <button data-tab="compare"><span class="ico">⚖️</span>比較</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
