@@ -14,8 +14,9 @@ An online property-viewing tool on Cloudflare: unit scoring, a **67-item on-site
 |---|---|---|
 | 前端 / Frontend | 靜態 SPA（`public/index.html` + `app.js`）| 手機優先 UI，四個 tab：列表／新增／檢查表／比較 |
 | 後端 / Backend | Cloudflare **Workers**（`src/worker.js`）| JSON API + 相片串流 |
-| 資料庫 / Database | Cloudflare **D1**（SQLite）| 單位、檢查表評分、相片索引 |
+| 資料庫 / Database | Cloudflare **D1**（SQLite）| 單位、檢查表評分、相片索引、AI quota |
 | 相片 / Photos | Cloudflare **R2** | 壓縮後嘅 JPEG blob |
+| AI 助手 / AI assistant | **QwenCloud Token Plan**（`qwen3.7-plus`）| 🤖 分析＋propose 修改（fail-closed，需審查套用）|
 
 零伺服器、零 npm runtime 依賴；`wrangler` 只用於部署。
 No servers, no runtime npm dependencies; `wrangler` is deploy-only.
@@ -58,6 +59,9 @@ npx wrangler deploy                                             # 部署 / deplo
 | PUT | `/api/units/:id/checklist` | 批次 upsert 檢查表評分 `{items:[{category,item,score}]}` |
 | GET | `/api/compare` | 多盤比較（平均評分、每㎡叫價、估計總成本…）|
 | GET | `/photos/<key>` | R2 相片串流 |
+| GET | `/api/ai/quota` | AI 配置狀態＋token 配額（`configured`、`used/limit/remaining`、`refresh:false`）|
+| POST | `/api/ai/chat` | AI 對話 `{message, history?}` → `{message, operations[], invalid, quota}` |
+| POST | `/api/ai/apply` | 套用已審查嘅 ops `{operations[]}`（重驗簽名；過期整批 409）|
 
 檢查表評分 `score` = 1–5（1=很差…5=優秀），`null` = 不適用／未評分（不計入平均）。
 Checklist `score` = 1–5; `null` = N/A or unscored (excluded from the average).
@@ -76,9 +80,45 @@ Checklist `score` = 1–5; `null` = N/A or unscored (excluded from the average).
 
 - **API：22/22** 通過（本地 dev ＋ 線上生產環境各跑一次）
 - **UI：24/24** 通過（headless Edge，本地＋線上）
+- **AI 後端：30/30** 通過（functional 26 ＋ quota-trip 2 ＋ no-key 2，`test-ai.js` + `test-mock.js`）
 - 離線單檔案版（另一個 repo）：**104/104**
 
-Covered: CRUD、檢查表 upsert／平均分、相片上傳／串流／cascade 刪除、路徑穿越防護、比較表計算、XSS、UI 全流程。
+Covered: CRUD、檢查表 upsert／平均分、相片上傳／串流／cascade 刪除、路徑穿越防護、比較表計算、XSS、UI 全流程、AI fail-closed ops／簽名／過期 409／配額 402／無 key 503。
+
+```bash
+node test-mock.js 9998 &                 # contract mock upstream
+node test-ai.js functional http://127.0.0.1:8789 http://127.0.0.1:9998
+node test-ai.js trip     http://127.0.0.1:8789     # quota row pre-set high
+node test-ai.js nokey    http://127.0.0.1:8792     # dev started without the secret
+```
+
+---
+
+## 🤖 AI 助手 / AI assistant
+
+- **Provider:** QwenCloud **Token Plan**（Singapore），endpoint `https://token-plan.maas.qwencloudapi.com/compatible-mode/v1`，model `qwen3.7-plus`（見 `wrangler.toml [vars]`）。
+- **Key:** Worker secret `DASHSCOPE_API_KEY`。啟用／更換：
+  ```bash
+  npx wrangler secret put DASHSCOPE_API_KEY --name sanchong-online
+  ```
+  （互動式 stdin 輸入；key 永遠唔入 repo／chat／log。 / Interactive stdin; the key never enters repo/chat/logs.)
+- **Fail-closed:** AI 只可 propose `create_unit` / `update_unit` / `set_checklist`；每個 update 帶 sha256 簽名，過期或未知欄位**整批拒絕（409）**；未有明確 apply 絕不寫入。前端顯示舊→新 diff、逐項勾選＋確認、可 Discard／Undo。
+- **Quota:** 5,000,000 tokens、cumulative、**唔自動刷新**；耗盡回 402 並停用助手。擁有人可手動重置（見 `SOP.md`）。
+- **未配置時:** `/api/ai/quota` 回 `configured:false`、chat 回 503 — 屬安全預設，唔係壞咗。
+
+> ⚠️ 你嘅 key 係 **Token Plan（`sk-sp-...`）** 類型：只對 Token Plan base URL 有效；
+> `dashscope.aliyuncs.com`／`dashscope-intl.aliyuncs.com` 都會回 401。
+> Your key is a **Token Plan (`sk-sp-...`)** type: it only works against the Token Plan
+> base URL; the plain DashScope endpoints return 401.
+
+---
+
+## 📌 進度記錄 / Progress log
+
+| 日期 / Date | 變更 / Change |
+|---|---|
+| 2026-11-06 | 初版上線：單位評分＋67 項檢查表＋多盤比較（Workers+D1+R2）|
+| 2026-11-07 | 加入 🤖 AI 助手；修正 endpoint 去 QwenCloud Token Plan＋model `qwen3.7-plus`；**AI 啟用並驗證 200** |
 
 ---
 
