@@ -53,9 +53,9 @@
   .avg-row{font-size:13px;color:#555;background:#f0f7ff;border:1px solid #d6e9ff;border-radius:6px;padding:5px 9px;margin:6px 0}
   .avg-row b{color:var(--primary)}
   .photo-strip{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
-  .photo-strip img{width:62px;height:62px;object-fit:cover;border-radius:8px;border:1px solid #eee}
+  .photo-strip img{width:62px;height:62px;object-fit:cover;border-radius:8px;border:1px solid #eee;cursor:pointer}
   .photo-more{width:62px;height:62px;display:flex;align-items:center;justify-content:center;background:#f0f0f0;
-              border-radius:8px;font-size:12px;color:#999;border:1px dashed #ccc}
+              border-radius:8px;font-size:12px;color:#999;border:1px dashed #ccc;cursor:pointer}
   .card-actions{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0}
   .card-actions .btn{flex:1;width:auto}
   .card-time{text-align:right;font-size:11px;color:#bbb;margin-top:6px}
@@ -97,9 +97,27 @@
              border:2px dashed var(--border);border-radius:8px;background:#fafbfc;font-size:14px;color:#888;cursor:pointer}
   .photo-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   .photo-item{position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid #eee}
-  .photo-item img{width:100%;height:100%;object-fit:cover}
+  .photo-item img{width:100%;height:100%;object-fit:cover;cursor:pointer}
   .photo-del{position:absolute;top:2px;right:2px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);
-             color:#fff;border:none;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+             color:#fff;border:none;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+
+  /* ---- photo preview lightbox ---- */
+  .pv-modal{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;touch-action:none}
+  .pv-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;
+          padding:10px 12px;color:#fff;z-index:2;background:linear-gradient(rgba(0,0,0,.55),transparent)}
+  .pv-count{font-size:14px;font-weight:600;letter-spacing:.02em}
+  .pv-close{width:40px;height:40px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;
+            font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .pv-stage{flex:1;width:100%;display:flex;align-items:center;justify-content:center;position:relative;min-height:0}
+  .pv-img{max-width:100%;max-height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
+  .pv-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border:none;border-radius:50%;
+          background:rgba(255,255,255,.18);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;
+          justify-content:center;z-index:2}
+  .pv-nav:disabled{opacity:.25;cursor:default}
+  .pv-prev{left:8px}.pv-next{right:8px}
+  .pv-hint{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:rgba(255,255,255,.55);font-size:12px;
+           pointer-events:none}
   /* ---- AI assistant ---- */
   .ai-fab{position:fixed;right:14px;bottom:70px;width:56px;height:56px;border-radius:50%;border:none;
           background:linear-gradient(135deg,#1976d2,#7b1fa2);color:#fff;font-size:26px;cursor:pointer;
@@ -288,6 +306,19 @@
   <button data-tab="compare"><span class="ico">⚖️</span>比較</button>
 </div>
 <div class="toast" id="toast"></div>
+
+<div class="pv-modal hidden" id="photoPreview" role="dialog" aria-modal="true" aria-label="相片預覽">
+  <div class="pv-top">
+    <span class="pv-count" id="pvCount">1 / 1</span>
+    <button class="pv-close" id="pvClose" type="button" aria-label="關閉預覽">✕</button>
+  </div>
+  <div class="pv-stage" id="pvStage">
+    <button class="pv-nav pv-prev" id="pvPrev" type="button" aria-label="上一張">‹</button>
+    <img class="pv-img" id="pvImg" alt="相片預覽">
+    <button class="pv-nav pv-next" id="pvNext" type="button" aria-label="下一張">›</button>
+  </div>
+  <div class="pv-hint">左右滑動或撳箭嘴切換 · 撳空白處關閉</div>
+</div>
 
 <script src="/app.js"></script>
 </body>

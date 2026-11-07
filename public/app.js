@@ -73,8 +73,11 @@
       if (u.rooms) tags += `<span class="tag tag-gray">${esc(u.rooms)}</span>`;
       if (u.floor) tags += `<span class="tag tag-gray">${esc(u.floor)}樓</span>`;
       if (u.facing) tags += `<span class="tag tag-orange">朝${esc(u.facing)}</span>`;
-      const photos = (u.photos || []).slice(0, 6).map(p => `<img src="${esc(p.url)}" loading="lazy" alt="">`).join('');
-      const more = (u.photos || []).length > 6 ? `<div class="photo-more">+${u.photos.length - 6}</div>` : '';
+      const photos = (u.photos || []).slice(0, 6).map((p, i) =>
+        `<img src="${esc(p.url)}" loading="lazy" alt="" data-pv-unit="${u.id}" data-pv-i="${i}">`).join('');
+      const more = (u.photos || []).length > 6
+        ? `<div class="photo-more" data-pv-unit="${u.id}" data-pv-i="6">+${u.photos.length - 6}</div>`
+        : '';
       const avg = u.checklist_avg != null
         ? `<div class="avg-row">實地檢查平均 <b>${u.checklist_avg}</b> / 5（已評 ${u.checklist_count} 項）</div>`
         : `<div class="avg-row">實地檢查：未評分</div>`;
@@ -239,15 +242,52 @@
   }
   function renderPhotoGrid() {
     const el = $('#photoGrid');
-    const saved = savedPhotos.map(p =>
-      `<div class="photo-item"><img src="${esc(p.url)}" alt=""><button class="photo-del" data-del-saved="${p.id}">×</button></div>`).join('');
+    const saved = savedPhotos.map((p, i) =>
+      `<div class="photo-item"><img src="${esc(p.url)}" alt="" data-pv-form="${i}"><button class="photo-del" data-del-saved="${p.id}">×</button></div>`).join('');
     const tmp = tempPhotos.map((d, i) =>
-      `<div class="photo-item"><img src="${d}" alt=""><button class="photo-del" data-del-tmp="${i}">×</button></div>`).join('');
+      `<div class="photo-item"><img src="${d}" alt="" data-pv-form="${savedPhotos.length + i}"><button class="photo-del" data-del-tmp="${i}">×</button></div>`).join('');
     el.innerHTML = saved + tmp || '<div style="font-size:13px;color:#bbb">尚未選擇照片</div>';
   }
   async function deleteSavedPhoto(id) {
     try { await api('/api/photos/' + id, { method: 'DELETE' }); savedPhotos = savedPhotos.filter(p => p.id !== id); renderPhotoGrid(); toast('已刪除相片'); }
     catch (e) { toast('刪除失敗：' + e.message); }
+  }
+
+  // ---------- photo preview lightbox ----------
+  let pvUrls = [];
+  let pvIndex = 0;
+  let pvTouchX = null;
+
+  function openPhotoPreview(urls, index) {
+    const list = (urls || []).filter(Boolean);
+    if (!list.length) return;
+    pvUrls = list;
+    pvIndex = Math.max(0, Math.min(Number(index) || 0, list.length - 1));
+    renderPhotoPreview();
+    $('#photoPreview').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+  function closePhotoPreview() {
+    $('#photoPreview').classList.add('hidden');
+    document.body.style.overflow = '';
+    pvUrls = [];
+    pvIndex = 0;
+    pvTouchX = null;
+  }
+  function renderPhotoPreview() {
+    if (!pvUrls.length) return;
+    $('#pvImg').src = pvUrls[pvIndex];
+    $('#pvCount').textContent = (pvIndex + 1) + ' / ' + pvUrls.length;
+    $('#pvPrev').disabled = pvUrls.length < 2;
+    $('#pvNext').disabled = pvUrls.length < 2;
+  }
+  function stepPhotoPreview(delta) {
+    if (pvUrls.length < 2) return;
+    pvIndex = (pvIndex + delta + pvUrls.length) % pvUrls.length;
+    renderPhotoPreview();
+  }
+  function formPreviewUrls() {
+    return savedPhotos.map(p => p.url).concat(tempPhotos);
   }
 
   // ---------- checklist ----------
@@ -384,10 +424,49 @@
     if (dtmp) { tempPhotos.splice(Number(dtmp.dataset.delTmp), 1); renderPhotoGrid(); return; }
     const dsav = e.target.closest('[data-del-saved]');
     if (dsav) { deleteSavedPhoto(Number(dsav.dataset.delSaved)); return; }
+
+    const formThumb = e.target.closest('[data-pv-form]');
+    if (formThumb) {
+      openPhotoPreview(formPreviewUrls(), Number(formThumb.dataset.pvForm));
+      return;
+    }
+    const listThumb = e.target.closest('[data-pv-unit]');
+    if (listThumb) {
+      const uid = Number(listThumb.dataset.pvUnit);
+      const u = units.find(x => x.id === uid);
+      const urls = (u && u.photos ? u.photos : []).map(p => p.url);
+      openPhotoPreview(urls, Number(listThumb.dataset.pvI) || 0);
+      return;
+    }
   });
 
   $('#chkUnit').addEventListener('change', async e => { chkUnitId = Number(e.target.value) || null; await loadChecklist(); });
   $('#f_photos').addEventListener('change', onPhotoPick);
+
+  $('#pvClose').addEventListener('click', closePhotoPreview);
+  $('#pvPrev').addEventListener('click', e => { e.stopPropagation(); stepPhotoPreview(-1); });
+  $('#pvNext').addEventListener('click', e => { e.stopPropagation(); stepPhotoPreview(1); });
+  $('#pvStage').addEventListener('click', e => {
+    if (e.target === $('#pvStage')) closePhotoPreview();
+  });
+  const pvModal = $('#photoPreview');
+  pvModal.addEventListener('touchstart', e => {
+    if (!e.changedTouches || !e.changedTouches.length) return;
+    pvTouchX = e.changedTouches[0].clientX;
+  }, { passive: true });
+  pvModal.addEventListener('touchend', e => {
+    if (pvTouchX == null || !e.changedTouches || !e.changedTouches.length) return;
+    const dx = e.changedTouches[0].clientX - pvTouchX;
+    pvTouchX = null;
+    if (Math.abs(dx) < 50) return;
+    stepPhotoPreview(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  document.addEventListener('keydown', e => {
+    if ($('#photoPreview').classList.contains('hidden')) return;
+    if (e.key === 'Escape') closePhotoPreview();
+    else if (e.key === 'ArrowLeft') stepPhotoPreview(-1);
+    else if (e.key === 'ArrowRight') stepPhotoPreview(1);
+  });
 
   // ===================== AI assistant =====================
   let aiHistory = [];
